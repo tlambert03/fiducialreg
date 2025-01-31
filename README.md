@@ -10,3 +10,10 @@ fiducial-based image reg
 
 (old code pulled from LLSpy)
 
+
+```sh
+pip install git+https://github.com/tlambert03/fiducialreg.git
+
+# also, recommended if possible
+pip install numba
+```
