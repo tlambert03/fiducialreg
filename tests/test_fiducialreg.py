@@ -1,2 +1,2 @@
 def test_something():
-    pass
+    import fiducialreg  # noqa: F401

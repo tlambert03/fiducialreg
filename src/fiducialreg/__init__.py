@@ -1,4 +1,4 @@
-"""fiducial-based image reg"""
+"""fiducial-based image reg."""
 
 from importlib.metadata import PackageNotFoundError, version
 
@@ -8,3 +8,5 @@ except PackageNotFoundError:
     __version__ = "uninstalled"
 __author__ = "Talley Lambert"
 __email__ = "talley.lambert@gmail.com"
+
+__all__ = ("CloudSet", "FiducialCloud", "GaussFitter3D", "RegFile", "RegistrationError")

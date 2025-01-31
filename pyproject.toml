@@ -33,7 +33,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = ["matplotlib", "numpy", "scipy", "tifffile"]
 
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies
 [project.optional-dependencies]
@@ -41,15 +41,27 @@ test = ["pytest", "pytest-cov"]
 dev = [
     "ipython",
     "mypy",
-    "pdbpp",  # https://github.com/pdbpp/pdbpp
+    "pdbpp",      # https://github.com/pdbpp/pdbpp
     "pre-commit",
-    "rich",  # https://github.com/Textualize/rich
+    "rich",       # https://github.com/Textualize/rich
     "ruff",
 ]
 
 [project.urls]
 homepage = "https://github.com/tlambert03/fiducialreg"
 repository = "https://github.com/tlambert03/fiducialreg"
+
+[dependency-groups]
+dev = [
+    "ipython>=8.18.1",
+    "mypy>=1.14.1",
+    "pre-commit>=4.1.0",
+    "pyright>=1.1.393",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "rich>=13.9.4",
+    "ruff>=0.9.4",
+]
 
 # https://docs.astral.sh/ruff
 [tool.ruff]
@@ -85,14 +97,15 @@ ignore = [
 # https://docs.astral.sh/ruff/formatter/
 [tool.ruff.format]
 docstring-code-format = true
-skip-magic-trailing-comma = false  # default is false
+skip-magic-trailing-comma = false # default is false
 
 # https://mypy.readthedocs.io/en/stable/config_file.html
 [tool.mypy]
 files = "src/**/"
-strict = true
+# strict = true
 disallow_any_generics = false
 disallow_subclassing_any = false
+disallow_untyped_defs = false
 show_error_codes = true
 pretty = true
 
@@ -119,8 +132,4 @@ exclude_lines = [
 source = ["fiducialreg"]
 
 [tool.check-manifest]
-ignore = [
-    ".pre-commit-config.yaml",
-    ".ruff_cache/**/*",
-    "tests/**/*",
-]
+ignore = [".pre-commit-config.yaml", ".ruff_cache/**/*", "tests/**/*"]

@@ -7,3 +7,6 @@
 [![codecov](https://codecov.io/gh/tlambert03/fiducialreg/branch/main/graph/badge.svg)](https://codecov.io/gh/tlambert03/fiducialreg)
 
 fiducial-based image reg
+
+(old code pulled from LLSpy)
+
