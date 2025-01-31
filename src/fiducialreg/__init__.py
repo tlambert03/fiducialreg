@@ -9,4 +9,20 @@ except PackageNotFoundError:
 __author__ = "Talley Lambert"
 __email__ = "talley.lambert@gmail.com"
 
-__all__ = ("CloudSet", "FiducialCloud", "GaussFitter3D", "RegFile", "RegistrationError")
+from .fiducialreg import (
+    CloudSet,
+    FiducialCloud,
+    GaussFitter3D,
+    RegFile,
+    RegistrationError,
+    register_image_to_wave,
+)
+
+__all__ = (
+    "CloudSet",
+    "FiducialCloud",
+    "GaussFitter3D",
+    "RegFile",
+    "RegistrationError",
+    "register_image_to_wave",
+)
