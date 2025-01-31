@@ -110,7 +110,7 @@ class DimensionManager:
 
 
 class imref2d:
-    """Spatial referenceing object for 2d."""
+    """Spatial referencing object for 2d."""
 
     def __init__(self, *args):
         self.Dimension = dotdict()
@@ -154,9 +154,17 @@ class imref2d:
     def XWorldLimits(self):
         return self.Dimension.X.WorldLimits
 
+    @XWorldLimits.setter
+    def XWorldLimits(self, xLimWorld):
+        self.Dimension.X.WorldLimits = xLimWorld
+
     @property
     def YWorldLimits(self):
         return self.Dimension.Y.WorldLimits
+
+    @YWorldLimits.setter
+    def YWorldLimits(self, yLimWorld):
+        self.Dimension.Y.WorldLimits = yLimWorld
 
     @property
     def PixelExtentInWorldX(self):
@@ -187,14 +195,6 @@ class imref2d:
         return np.array(
             [self.Dimension.Y.NumberOfSamples, self.Dimension.X.NumberOfSamples]
         )
-
-    @XWorldLimits.setter
-    def XWorldLimits(self, xLimWorld):
-        self.Dimension.X.WorldLimits = xLimWorld
-
-    @YWorldLimits.setter
-    def YWorldLimits(self, yLimWorld):
-        self.Dimension.Y.WorldLimits = yLimWorld
 
     @ImageSize.setter
     def ImageSize(self, imSize):
@@ -255,7 +255,7 @@ class imref2d:
 
 
 class imref3d(imref2d):
-    """Spatial referenceing object for 3d.
+    """Spatial referencing object for 3d.
 
     R = imref3d() creates an imref3d object with default property settings.
 
@@ -321,6 +321,10 @@ class imref3d(imref2d):
     def ZWorldLimits(self):
         return self.Dimension.Z.WorldLimits
 
+    @ZWorldLimits.setter
+    def ZWorldLimits(self, zLimWorld):
+        self.Dimension.Z.WorldLimits = zLimWorld
+
     @property
     def PixelExtentInWorldZ(self):
         return np.abs(self.Dimension.Z.Delta)
@@ -332,10 +336,6 @@ class imref3d(imref2d):
     @property
     def ZIntrinsicLimits(self):
         return self.Dimension.Z.IntrinsicLimits
-
-    @ZWorldLimits.setter
-    def ZWorldLimits(self, zLimWorld):
-        self.Dimension.Z.WorldLimits = zLimWorld
 
     @property
     def ImageSize(self):

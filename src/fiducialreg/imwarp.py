@@ -12,8 +12,7 @@ except ImportError:
 
 
 def imwarp(inputImage, tform, R_A=None, outputRef=None):
-    """transform input image with provided tform matrix"""
-
+    """Transform input image with provided tform matrix"""
     # checkImageAgreementWithTform(inputImage,tform)
 
     if R_A is None:

@@ -50,7 +50,7 @@ class RegistrationError(Exception):
     """Base class for fiducialreg errors."""
 
 
-# TODO: try seperable gaussian filter instead for speed
+# TODO: try separable gaussian filter instead for speed
 def log_filter(img, blurxysigma=1, blurzsigma=2.5, mask=None):
     # sigma that works for 2 or 3 dimensional img
     sigma = [blurzsigma, blurxysigma, blurxysigma][-img.ndim :]
@@ -239,7 +239,7 @@ def infer_translation(X, Y):
 # ### APPLY TRANSFORMS ####
 
 
-def cart2hom(X):
+def cart2homenous(X):
     return np.vstack((X, np.ones((1, X.shape[1]))))
 
 
@@ -250,7 +250,7 @@ def intrinsicToWorld(intrinsicXYZ, dxy, dz, worldStart=0.5):
     return worldStart + (intrinsicXYZ - 0.5) * np.array([dxy, dxy, dz])
 
 
-def worldToInstrinsic(worldXYZ, dxy, dz, worldStart=0.5):
+def worldToIntrinsic(worldXYZ, dxy, dz, worldStart=0.5):
     """Where XYZ coord is a 1x3 vector np.array([X, Y, Z])."""
     if dxy == dz == 1:
         logger.warning("voxel size set at [1,1,1]... possibly unset")
@@ -421,7 +421,7 @@ class GaussFitter3D:
         startParameters = [3 * A, x0, y0, z0, self.wx, self.wz, dataROI.min()]
 
         # should use gain and noise map from camera Parameters
-        # for now assume uniform noise characteristcs and sCMOS read noise
+        # for now assume uniform noise characteristics and sCMOS read noise
         electrons_per_ADU = 0.5
         TrueEMGain = 1
         NoiseFactor = 1
@@ -499,16 +499,11 @@ class FiducialCloud:
         if data is not None:
             if isinstance(data, str) and os.path.isfile(data):
                 # fc = FiducialCloud('/path/to/file')
-                try:
-                    import tifffile as tf
+                import tifffile as tf
 
-                    self.filename = os.path.basename(data)
-                    self.data = tf.imread(data).astype("f")
-                except ImportError:
-                    raise ImportError(
-                        "The tifffile package is required to read a "
-                        "filepath into an array."
-                    )
+                self.filename = os.path.basename(data)
+                self.data = tf.imread(data).astype("f")
+
             elif isinstance(data, np.ndarray):
                 # fc = FiducialCloud(np.ndarray)
                 self.data = data
@@ -576,10 +571,10 @@ class FiducialCloud:
         try:
             thresh = float(thresh)
             assert thresh > 0
-        except Exception:
+        except Exception as e:
             raise RegistrationError(
                 f"Threshold must be number greater than 0.  got: {thresh}"
-            )
+            ) from e
         logger.debug(f"Update_coords using threshold: {thresh}")
         labeled = ndimage.label(self.filtered > thresh)[0]
         objects = ndimage.find_objects(labeled)
@@ -615,7 +610,7 @@ class FiducialCloud:
 
     @property
     def coords_inworld(self):
-        """Return coordinate list in world corrdinates based on voxel size."""
+        """Return coordinate list in world coordinates based on voxel size."""
         return intrinsicToWorld(self.coords.T, self.dx, self.dz).T
 
     def show(self, withimage=True, filtered=True):
@@ -829,7 +824,7 @@ class CloudSet:
                     regto.append(ref)
                 else:
                     logger.warning(
-                        f"Reference {ref} not in lablels: {self.labels} ... skipping"
+                        f"Reference {ref} not in labels: {self.labels} ... skipping"
                     )
         if not len(regto):
             logger.error("No recognized values in refs list.  No tforms calculated")
@@ -1150,7 +1145,7 @@ class RegFile:
             raise RegistrationError(f"Reference wave {ref} not in registration file")
         if moving not in self.tform_dict[ref]:
             raise RegistrationError(
-                f"No transform to map moving wave {moving} onto refrence wave {ref}"
+                f"No transform to map moving wave {moving} onto reference wave {ref}"
             )
         if mode not in self.tform_dict[ref][moving]:
             raise RegistrationError(
@@ -1158,6 +1153,115 @@ class RegFile:
             )
 
         return self.tform_dict[ref][moving][mode]
+
+
+# untested affineGPU replacement
+def affine_transform_cpu(im, tmat, dzyx=None):
+    """Perform affine transformation of image with provided transformation matrix.
+
+    optional dzyx parameter specifies the voxel size of the image [dz, dy, dx].
+    If it is provided, it will be used to transform the image from intrinsic
+    coordinates to world coordinates prior to transformation, e.g.:
+
+    x = 0.5 + (x - 0.5) * dx;
+
+    and then back to intrinsic coords afterwards... e.g.:
+
+    tu = 0.5 + (tu - 0.5) / dx;
+
+    """
+    nz, ny, nx = im.shape
+    if not np.issubdtype(im.dtype, np.float32) or not im.flags["C_CONTIGUOUS"]:
+        im = np.ascontiguousarray(im, dtype=np.float32)
+    if not np.issubdtype(tmat.dtype, np.float32):
+        tmat = tmat.astype(np.float32)
+
+    if dzyx is not None:
+        # Transform from intrinsic to world coordinates
+        coords = np.indices((nz, ny, nx), dtype=np.float32)
+        coords = np.array(
+            [coords[0] * dzyx[0], coords[1] * dzyx[1], coords[2] * dzyx[2]]
+        )
+        coords = coords.reshape(3, -1)
+        coords = np.vstack((coords, np.ones((1, coords.shape[1]))))
+        transformed_coords = np.dot(tmat, coords)
+        transformed_coords = transformed_coords[:3] / dzyx[:, None]
+        transformed_coords = transformed_coords.reshape((3, nz, ny, nx))
+        result = ndimage.affine_transform(
+            im, tmat[:3, :3], offset=tmat[:3, 3], output_shape=im.shape, order=1
+        )
+    else:
+        result = ndimage.affine_transform(
+            im, tmat[:3, :3], offset=tmat[:3, 3], output_shape=im.shape, order=1
+        )
+
+    return result
+
+
+_FPATTERN = (
+    "{basename}_ch{channel:d}_stack{stack:d}_{wave:d}"
+    "nm_{reltime:d}msec_{abstime:d}msecAbs{}"
+)
+
+
+def register_image_to_wave(
+    img: np.ndarray | str,
+    regCalibObj: RegFile,
+    imwave=None,
+    refwave=488,
+    voxsize=None,
+    mode="2step",
+):
+    # voxsize must be an array of pixel sizes [dz, dy, dx]
+
+    if not isinstance(regCalibObj, RegFile):
+        raise RegistrationError(
+            "Calibration object for register_image_to_wave "
+            f"must be either RegDir or RegFile.  Received: {type(regCalibObj)!s}"
+        )
+
+    if isinstance(img, np.ndarray):
+        if imwave is None:
+            raise ValueError(
+                "Must provide wavelength when providing array for registration."
+            )
+    elif isinstance(img, str) and os.path.isfile(img):
+        import tifffile as tf
+
+        if imwave is None:
+            try:
+                imwave = parse_filename(img, "wave", pattern=_FPATTERN)
+            except Exception:
+                pass
+            if not imwave:
+                raise ValueError("Could not detect image wavelength.")
+        img = tf.imread(img)
+    else:
+        raise ValueError(
+            "Input to Registration must either be a np.array or a path to a tif file"
+        )
+
+    tform = regCalibObj.get_tform(imwave, refwave, mode)
+    inv_tform = np.linalg.inv(tform)
+    return affine_transform_cpu(img, inv_tform, voxsize)
+
+
+def parse_filename(fname, matchword=None, pattern=None):
+    """Parse a filename using a pattern and return the named groups."""
+    import parse
+
+    if not pattern:
+        pattern = _FPATTERN
+
+    fname = os.path.basename(fname)
+    R = parse.parse(pattern, fname)
+    if not (R and hasattr(R, "named")):
+        raise ValueError(f"Could not parse filename:\n{fname} with pattern:\n{pattern}")
+    named = R.named
+    if matchword in named:
+        return named[matchword]
+    else:
+        return named
 
 
 ###############################################################################
@@ -1436,46 +1540,3 @@ funcDict = {
     "cpd_affine": CPDaffine,
     "cpd_2step": cpd_2step,
 }
-
-
-# untested affineGPU replacement
-def affine_transform_cpu(im, tmat, dzyx=None):
-    """Perform affine transformation of image with provided transformation matrix.
-
-    optional dzyx parameter specifies the voxel size of the image [dz, dy, dx].
-    If it is provided, it will be used to transform the image from intrinsic
-    coordinates to world coordinates prior to transformation, e.g.:
-
-    x = 0.5 + (x - 0.5) * dx;
-
-    and then back to intrinsic coords afterwards... e.g.:
-
-    tu = 0.5 + (tu - 0.5) / dx;
-
-    """
-    nz, ny, nx = im.shape
-    if not np.issubdtype(im.dtype, np.float32) or not im.flags["C_CONTIGUOUS"]:
-        im = np.ascontiguousarray(im, dtype=np.float32)
-    if not np.issubdtype(tmat.dtype, np.float32):
-        tmat = tmat.astype(np.float32)
-
-    if dzyx is not None:
-        # Transform from intrinsic to world coordinates
-        coords = np.indices((nz, ny, nx), dtype=np.float32)
-        coords = np.array(
-            [coords[0] * dzyx[0], coords[1] * dzyx[1], coords[2] * dzyx[2]]
-        )
-        coords = coords.reshape(3, -1)
-        coords = np.vstack((coords, np.ones((1, coords.shape[1]))))
-        transformed_coords = np.dot(tmat, coords)
-        transformed_coords = transformed_coords[:3] / dzyx[:, None]
-        transformed_coords = transformed_coords.reshape((3, nz, ny, nx))
-        result = ndimage.affine_transform(
-            im, tmat[:3, :3], offset=tmat[:3, 3], output_shape=im.shape, order=1
-        )
-    else:
-        result = ndimage.affine_transform(
-            im, tmat[:3, :3], offset=tmat[:3, 3], output_shape=im.shape, order=1
-        )
-
-    return result
