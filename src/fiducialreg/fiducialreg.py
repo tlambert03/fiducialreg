@@ -1177,7 +1177,10 @@ def affine_transform_cpu(im, tmat, dzyx=None):
         tmat = tmat.astype(np.float32)
 
     if dzyx is not None:
-        # Transform from intrinsic to world coordinates
+        dzyx = np.asarray(dzyx, dtype=np.float32)
+        # Build the sampling coordinates: for each output voxel, go to world
+        # coordinates (* dzyx), apply the (inverse) transform, and come back to
+        # intrinsic coordinates (/ dzyx), then sample the input there.
         coords = np.indices((nz, ny, nx), dtype=np.float32)
         coords = np.array(
             [coords[0] * dzyx[0], coords[1] * dzyx[1], coords[2] * dzyx[2]]
@@ -1187,9 +1190,7 @@ def affine_transform_cpu(im, tmat, dzyx=None):
         transformed_coords = np.dot(tmat, coords)
         transformed_coords = transformed_coords[:3] / dzyx[:, None]
         transformed_coords = transformed_coords.reshape((3, nz, ny, nx))
-        result = ndimage.affine_transform(
-            im, tmat[:3, :3], offset=tmat[:3, 3], output_shape=im.shape, order=1
-        )
+        result = ndimage.map_coordinates(im, transformed_coords, order=1)
     else:
         result = ndimage.affine_transform(
             im, tmat[:3, :3], offset=tmat[:3, 3], output_shape=im.shape, order=1
